@@ -48,7 +48,7 @@ func TestCanGetProjects(t *testing.T) {
 
 	actualProjects, err := client.GetProjects()
 
-	require.True(t, called)
+	require.True(t, called, "method under test was not called")
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, expectedProjects, actualProjects)
@@ -140,4 +140,18 @@ func TestCreateSingleProject(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.Equal(t, want, actual)
 	}
+}
+
+func TestDeleteProject(t *testing.T) {
+	setup()
+	defer teardown()
+
+	mux.HandleFunc("/organisation/12345/project/45", func(writer http.ResponseWriter, request *http.Request) {
+		assert.Equal(t, http.MethodDelete, request.Method)
+		writer.WriteHeader(http.StatusOK)
+	})
+
+	err := client.DeleteProject(45)
+
+	assert.NoError(t, err)
 }
