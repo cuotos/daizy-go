@@ -2,6 +2,7 @@ package daizy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,10 +26,6 @@ type API struct {
 }
 
 type Option func(*API) error
-
-type errorResponse struct {
-	success string `json:"success"`
-}
 
 // WithBaseURL overrides the default URL for the Daizy API
 // default is "https://portal-test.daizy.io/api/v1"
@@ -101,13 +98,24 @@ func (a *API) makeRequestWithContext(ctx context.Context, method, url string, bo
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 
-	// TODO: UNTESTED CODE
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status error: %s", resp.Status)
-	}
-
 	respBody, err := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
+
+	// Handle error responses
+	if resp.StatusCode != http.StatusOK {
+
+		re := &ResponseError{}
+
+		err := json.Unmarshal(respBody, re)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal error response from server: %w", err)
+		}
+
+		re.Status = resp.StatusCode
+
+		return nil, re
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("can't read response body: %w", err)
 	}

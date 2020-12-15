@@ -116,7 +116,7 @@ func TestHeadersAreCorrect(t *testing.T) {
 		called = true
 		assert.Equal(t, fmt.Sprintf("Bearer %s", testAuthToken), request.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
-		fmt.Fprintf(writer, `{
+		_, _ = fmt.Fprintf(writer, `{
       "name": "aProject",
       "status": "created",
       "user_id": 0,
@@ -134,3 +134,44 @@ func TestHeadersAreCorrect(t *testing.T) {
 }
 
 //TODO: test that non 200 status return the correct error
+func TestNon200Responses(t *testing.T) {
+	tcs := []struct {
+		ResponseStatus  int
+		ResponseMessage string
+	}{
+		{
+			http.StatusBadRequest,
+			"A numeric value is required",
+		},
+	}
+
+	for _, tc := range tcs {
+		setup()
+		defer teardown()
+
+		mux.HandleFunc("/organisation/12345/project/1", func(writer http.ResponseWriter, request *http.Request) {
+			writer.WriteHeader(tc.ResponseStatus)
+			_, _ = fmt.Fprint(writer, `{
+  "success": false,
+  "errors": [
+    {
+      "field": "deviceId",
+      "type": "NUMERIC",
+      "message": "A numeric value is required"
+    }
+  ]
+}`)
+		})
+
+		_, err := client.GetProject(1)
+
+		re := &ResponseError{}
+
+		if errors.As(err, &re) {
+			assert.Equal(t, "A numeric value is required", re.Error())
+			assert.Equal(t, http.StatusBadRequest, re.Status)
+		} else {
+			t.Fatalf("error was not of type ResponseError: %T", err)
+		}
+	}
+}
