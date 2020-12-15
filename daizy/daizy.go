@@ -1,10 +1,11 @@
 package daizy
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
@@ -24,6 +25,10 @@ type API struct {
 }
 
 type Option func(*API) error
+
+type errorResponse struct {
+	success string `json:"success"`
+}
 
 // WithBaseURL overrides the default URL for the Daizy API
 // default is "https://portal-test.daizy.io/api/v1"
@@ -75,13 +80,17 @@ func New(organisation, token string, options ...Option) (*API, error) {
 	return c, nil
 }
 
-func (a *API) makeRequest(method, url string, body io.Reader, v interface{}) error {
+func (a *API) makeRequest(method, url string, body io.Reader) ([]byte, error) {
+	return a.makeRequestWithContext(context.TODO(), method, url, body)
+}
+
+func (a *API) makeRequestWithContext(ctx context.Context, method, url string, body io.Reader) ([]byte, error) {
 
 	fullUrl := fmt.Sprintf("%v%v", a.baseURL, url)
 
-	req, err := http.NewRequest(method, fullUrl, body)
+	req, err := http.NewRequestWithContext(ctx, method, fullUrl, body)
 	if err != nil {
-		return fmt.Errorf("error creating request: %w", err)
+		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.authToken))
@@ -89,21 +98,19 @@ func (a *API) makeRequest(method, url string, body io.Reader, v interface{}) err
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("HTTP request failed: %w", err)
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 
 	// TODO: UNTESTED CODE
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP status error: %s", resp.Status)
+		return nil, fmt.Errorf("HTTP status error: %s", resp.Status)
 	}
 
-	if v != nil {
-		err := json.NewDecoder(resp.Body).Decode(v)
-		defer resp.Body.Close()
-		if err != nil {
-			return fmt.Errorf("could not parse json response: %w", err)
-		}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
+	if err != nil {
+		return nil, fmt.Errorf("can't read response body: %w", err)
 	}
 
-	return nil
+	return respBody, nil
 }
