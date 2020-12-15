@@ -1,11 +1,12 @@
 package daizy
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 const (
@@ -44,6 +45,14 @@ func WithBaseURI(uri string) Option {
 	}
 }
 
+// WithTimeout sets the timeout of the http client
+func WithTimeout(d time.Duration) Option {
+	return func(api *API) error {
+		api.httpClient.Timeout = d
+		return nil
+	}
+}
+
 func New(organisation, token string, options ...Option) (*API, error) {
 
 	if organisation == "" {
@@ -65,6 +74,12 @@ func New(organisation, token string, options ...Option) (*API, error) {
 		c.baseUri = baseUri
 	}
 
+	if c.httpClient == nil {
+		c.httpClient = http.DefaultClient
+	}
+
+	c.httpClient.Timeout = time.Second * 10
+
 	// Apply each of the optional options
 	for _, o := range options {
 		o(c)
@@ -74,20 +89,16 @@ func New(organisation, token string, options ...Option) (*API, error) {
 		c.baseHost = baseHost
 	}
 
-	if c.httpClient == nil {
-		c.httpClient = http.DefaultClient
-	}
-
 	return c, nil
 }
 
-func (a *API) makeRequest(method, url string, body io.Reader) ([]byte, error) {
+func (a *API) makeRequest(method, url string, body io.Reader, v interface{}) error {
 
 	fullUrl := fmt.Sprintf("%v%v%v", a.baseHost, a.baseUri, url)
 
 	req, err := http.NewRequest(method, fullUrl, body)
 	if err != nil {
-		return nil, fmt.Errorf("error creating request: %w", err)
+		return fmt.Errorf("error creating request: %w", err)
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", a.authToken))
@@ -95,26 +106,17 @@ func (a *API) makeRequest(method, url string, body io.Reader) ([]byte, error) {
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
+		return fmt.Errorf("HTTP request failed: %w", err)
 	}
 
 	// TODO: UNTESTED CODE
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP status error: %s", resp.Status)
+		return fmt.Errorf("HTTP status error: %s", resp.Status)
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("could not read the response body: %w", err)
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return fmt.Errorf("could not parse json response: %w", err)
 	}
 
-	return respBody, nil
-}
-
-func (a *API) internalTestingEndpoint(endpoint string) ([]byte, error) {
-
-	uri := endpoint
-
-	return a.makeRequest(http.MethodGet, uri, nil)
+	return nil
 }

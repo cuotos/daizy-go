@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 const (
@@ -70,6 +71,7 @@ func TestCanCreateNewClient(t *testing.T) {
 				assert.Equal(t, tc.InputToken, c.authToken)
 				assert.Equal(t, baseHost, c.baseHost)
 				assert.Equal(t, baseUri, c.baseUri)
+				assert.Equal(t, time.Second*10, c.httpClient.Timeout)
 			}
 		} else {
 			if assert.Error(t, err) {
@@ -114,13 +116,21 @@ func TestHeadersAreCorrect(t *testing.T) {
 	defer teardown()
 
 	called := false
-	mux.HandleFunc("/new/base/uri/randomEndpointForTestingOnly", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/new/base/uri/organisation/12345/project/1", func(writer http.ResponseWriter, request *http.Request) {
 		called = true
 		assert.Equal(t, fmt.Sprintf("Bearer %s", testAuthToken), request.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", request.Header.Get("Content-Type"))
+		fmt.Fprintf(writer, `{
+      "name": "aProject",
+      "status": "created",
+      "user_id": 0,
+      "republish_mqtt": true,
+      "id": 32,
+      "organisation_id": 12
+    }`)
 	})
 
-	_, err := client.internalTestingEndpoint("/randomEndpointForTestingOnly")
+	_, err := client.GetProject(1)
 
 	if assert.NoError(t, err) {
 		assert.True(t, called, "the endpoint created by the test was not called")
