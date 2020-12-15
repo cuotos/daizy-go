@@ -72,3 +72,12 @@ func (a *API) CreateProject(project CreateProject) (*Project, error) {
 
 	return createProjectResponse, nil
 }
+
+// DeleteProject deleted project with the provided ID
+func (a *API) DeleteProject(id int) error {
+	uri := fmt.Sprintf("/organisation/%s/project/%d", a.organisation, id)
+
+	err := a.makeRequest(http.MethodDelete, uri, nil, nil)
+
+	return err
+}

@@ -26,11 +26,11 @@ func setup(opts ...Option) {
 	server = httptest.NewServer(mux)
 
 	// prepend so any provided values will override
-	opts = append([]Option{WithBaseURI("")}, opts...)
+	//opts = append(nil, opts...)
 
 	client, _ = New(testOrgId, testAuthToken, opts...)
 
-	client.baseHost = server.URL
+	client.baseURL = server.URL
 }
 
 func teardown() {
@@ -69,8 +69,7 @@ func TestCanCreateNewClient(t *testing.T) {
 			if assert.NoError(t, err, "valid client args should not error") {
 				assert.Equal(t, tc.InputOrg, c.organisation)
 				assert.Equal(t, tc.InputToken, c.authToken)
-				assert.Equal(t, baseHost, c.baseHost)
-				assert.Equal(t, baseUri, c.baseUri)
+				assert.Equal(t, baseURL, c.baseURL)
 				assert.Equal(t, time.Second*10, c.httpClient.Timeout)
 			}
 		} else {
@@ -89,14 +88,12 @@ func TestCanCreateClientWithCustomOptions(t *testing.T) {
 	}{
 		{
 			[]Option{
-				WithBaseHost("http://testing-base.com"),
-				WithBaseURI("/api/xxx"),
+				WithBaseURL("http://testing-base.com/api/xxx"),
 			},
 			API{
 				organisation: testOrgId,
 				authToken:    testAuthToken,
-				baseHost:     "http://testing-base.com",
-				baseUri:      "/api/xxx",
+				baseURL:      "http://testing-base.com/api/xxx",
 			},
 		},
 	}
@@ -104,19 +101,18 @@ func TestCanCreateClientWithCustomOptions(t *testing.T) {
 	for _, tc := range tcs {
 		c, _ := New(testOrgId, testAuthToken, tc.Options...)
 
-		assert.Equal(t, tc.Expected.baseUri, c.baseUri)
-		assert.Equal(t, tc.Expected.baseHost, c.baseHost)
+		assert.Equal(t, tc.Expected.baseURL, c.baseURL)
 		assert.Equal(t, tc.Expected.organisation, c.organisation)
 		assert.Equal(t, tc.Expected.authToken, c.authToken)
 	}
 }
 
 func TestHeadersAreCorrect(t *testing.T) {
-	setup(WithBaseURI("/new/base/uri"))
+	setup()
 	defer teardown()
 
 	called := false
-	mux.HandleFunc("/new/base/uri/organisation/12345/project/1", func(writer http.ResponseWriter, request *http.Request) {
+	mux.HandleFunc("/organisation/12345/project/1", func(writer http.ResponseWriter, request *http.Request) {
 		called = true
 		assert.Equal(t, fmt.Sprintf("Bearer %s", testAuthToken), request.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", request.Header.Get("Content-Type"))

@@ -10,16 +10,14 @@ import (
 )
 
 const (
-	baseUri  = "/api/v1"
-	baseHost = "https://api-test.daizy.io"
+	baseURL = "https://api-test.daizy.io/api/v1"
 )
 
 type API struct {
 	organisation string
 	authToken    string
 
-	baseHost string
-	baseUri  string
+	baseURL string
 
 	httpClient *http.Client
 	headers    http.Header
@@ -27,20 +25,11 @@ type API struct {
 
 type Option func(*API) error
 
-// WithBaseHost overrides the default Host for the Daizy API
-// default is "https://portal-test.daizy.io"
-func WithBaseHost(host string) Option {
+// WithBaseURL overrides the default URL for the Daizy API
+// default is "https://portal-test.daizy.io/api/v1"
+func WithBaseURL(host string) Option {
 	return func(api *API) error {
-		api.baseHost = host
-		return nil
-	}
-}
-
-// WithBaseURI overrides the default API URI for the Daizy API
-// default is "/api/v1"
-func WithBaseURI(uri string) Option {
-	return func(api *API) error {
-		api.baseUri = uri
+		api.baseURL = host
 		return nil
 	}
 }
@@ -68,14 +57,12 @@ func New(organisation, token string, options ...Option) (*API, error) {
 		authToken:    token,
 	}
 
-	// Set this before running the options. If the user intended to set the base uri to "" then it would get set to
-	// default due to the comparison looking for empty string ""
-	if c.baseUri == "" {
-		c.baseUri = baseUri
-	}
-
 	if c.httpClient == nil {
 		c.httpClient = http.DefaultClient
+	}
+
+	if c.baseURL == "" {
+		c.baseURL = baseURL
 	}
 
 	c.httpClient.Timeout = time.Second * 10
@@ -85,16 +72,12 @@ func New(organisation, token string, options ...Option) (*API, error) {
 		o(c)
 	}
 
-	if c.baseHost == "" {
-		c.baseHost = baseHost
-	}
-
 	return c, nil
 }
 
 func (a *API) makeRequest(method, url string, body io.Reader, v interface{}) error {
 
-	fullUrl := fmt.Sprintf("%v%v%v", a.baseHost, a.baseUri, url)
+	fullUrl := fmt.Sprintf("%v%v", a.baseURL, url)
 
 	req, err := http.NewRequest(method, fullUrl, body)
 	if err != nil {
@@ -114,8 +97,12 @@ func (a *API) makeRequest(method, url string, body io.Reader, v interface{}) err
 		return fmt.Errorf("HTTP status error: %s", resp.Status)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("could not parse json response: %w", err)
+	if v != nil {
+		err := json.NewDecoder(resp.Body).Decode(v)
+		defer resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("could not parse json response: %w", err)
+		}
 	}
 
 	return nil
