@@ -1,4 +1,4 @@
-module daizy-go
+module github.com/cuotos/daizy-go
 
 go 1.15
 
